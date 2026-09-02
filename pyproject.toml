@@ -1,7 +1,7 @@
 [project]
 name = "pypik"
 version = "0.1.0"
-description = "Add your description here"
+description = "Convert pik format files into PowerPoint objects, SVG, and other formats via an intermediate tree structure"
 readme = "README.md"
 authors = [
     { name = "Miki Yutani", email = "mkyutani@gmail.com" }
