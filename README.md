@@ -17,7 +17,8 @@ The pipeline has three stages:
 pypik doesn't define its own diagram language — `.pik` source is
 pikchr's language. See pikchr's own
 [grammar documentation](https://pikchr.org/home/doc/trunk/doc/grammar.md)
-for the language spec itself.
+for the language spec itself, or [docs/grammar.md](docs/grammar.md) for
+the grammar pypik's own parser implements, written as BNF.
 
 ## Requirements
 
