@@ -15,14 +15,9 @@ The pipeline has three stages:
    PowerPoint (`.pptx`) is implemented today; SVG is planned.
 
 pypik doesn't define its own diagram language — `.pik` source is
-pikchr's language. For the language spec itself (objects, attributes,
-positions, expressions), see pikchr's own documentation:
-
-- [Grammar](https://pikchr.org/home/doc/trunk/doc/grammar.md)
-- [Examples](https://pikchr.org/home/doc/tip/doc/examples.md)
-- [pikchr.y source](https://pikchr.org/home/doc/tip/pikchr.y) (the
-  authoritative reference this project's parser and layout engine were
-  ported from)
+pikchr's language. See pikchr's own
+[grammar documentation](https://pikchr.org/home/doc/trunk/doc/grammar.md)
+for the language spec itself.
 
 ## Requirements
 
