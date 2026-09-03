@@ -128,30 +128,37 @@ def _rgb(value: float) -> RGBColor:
     return RGBColor((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
 
 
+_MIN_SLIDE_SIDE_IN = 1.0  # PowerPoint refuses a slide smaller than 1in on either side
+
+
 class _Transform:
-    """Maps pik inches (y-up) to slide inches (y-down), with a margin."""
+    """Maps pik inches (y-up) to slide inches (y-down), with a margin.
+
+    PowerPoint requires each slide dimension to be at least 1in; a small
+    diagram (or a very small margin) can fall under that on its own, so
+    slide_width/slide_height are clamped up to it, and the extra space is
+    split evenly as additional margin so the diagram stays centered
+    rather than pinned in a corner.
+    """
 
     def __init__(self, bbox: tuple[float, float, float, float], margin: float):
         self.x0, self.y0, self.x1, self.y1 = bbox
-        self.margin = margin
-
-    @property
-    def slide_width(self) -> float:
-        return (self.x1 - self.x0) + 2 * self.margin
-
-    @property
-    def slide_height(self) -> float:
-        return (self.y1 - self.y0) + 2 * self.margin
+        natural_w = (self.x1 - self.x0) + 2 * margin
+        natural_h = (self.y1 - self.y0) + 2 * margin
+        self.slide_width = max(natural_w, _MIN_SLIDE_SIDE_IN)
+        self.slide_height = max(natural_h, _MIN_SLIDE_SIDE_IN)
+        self.margin_x = margin + (self.slide_width - natural_w) / 2
+        self.margin_y = margin + (self.slide_height - natural_h) / 2
 
     def rect(self, shape: Shape) -> tuple[float, float, float, float]:
         """Return (left, top, width, height) in inches for shape's bbox."""
         bx0, by0, bx1, by1 = shape.bbox
-        left = (bx0 - self.x0) + self.margin
-        top = (self.y1 - by1) + self.margin
+        left = (bx0 - self.x0) + self.margin_x
+        top = (self.y1 - by1) + self.margin_y
         return left, top, bx1 - bx0, by1 - by0
 
     def point(self, pt: tuple[float, float]) -> tuple[float, float]:
-        return (pt[0] - self.x0) + self.margin, (self.y1 - pt[1]) + self.margin
+        return (pt[0] - self.x0) + self.margin_x, (self.y1 - pt[1]) + self.margin_y
 
 
 def _set_arrowheads(line, larrow: bool, rarrow: bool) -> None:
@@ -252,26 +259,37 @@ def _add_line_shape(slide, shape: Shape, tf: _Transform, font_name: str, base_si
     _add_line_text(slide, shape, tf, font_name, base_size_pt)
 
 
-def _add_line_text(slide, shape: Shape, tf: _Transform, font_name: str, base_size_pt: float) -> None:
-    """A connector/freeform shape has no text_frame in python-pptx, so a
-    line's text (e.g. an arrow's label) is rendered as small floating
-    textboxes instead, placed above/on/below the line per assign_text_slots().
-    Sizing/spacing here scale with base_size_pt to stay proportioned to
-    whatever font size the rest of the diagram uses."""
+def _line_label_rects(
+    shape: Shape, base_size_pt: float
+) -> list[tuple[tuple[float, float, float, float], str, list[str]]]:
+    """Compute each text label's (x0, y0, x1, y1) rect in pik space (y-up,
+    unmargined), alongside its text/flags -- shared by _add_line_text()
+    (which draws these) and _content_bbox() (which needs to know how far
+    they extend beyond shape.bbox, since a line's own bbox -- just its
+    path -- doesn't account for labels floating above/below it)."""
     if not shape.texts:
-        return
+        return []
     label_box_h = base_size_pt * 1.15 / 72.0  # a touch taller than line_height(), just for rendering safety
     label_step = base_size_pt / 9.0 * _LABEL_STEP_IN
     bx0, by0, bx1, by1 = shape.bbox
     cx = (bx0 + bx1) / 2
     cy = (by0 + by1) / 2
+    out = []
     for (text, flags), slot in zip(shape.texts, assign_text_slots(shape.texts)):
         dy = _SLOT_STEP.get(slot, 0) * label_step
         box_w = max(len(text) * base_size_pt / 72.0 * 0.7, 0.3)
-        center_x, center_y = tf.point((cx, cy + dy))
-        textbox = slide.shapes.add_textbox(
-            Inches(center_x - box_w / 2), Inches(center_y - label_box_h / 2), Inches(box_w), Inches(label_box_h)
-        )
+        y = cy + dy
+        out.append(((cx - box_w / 2, y - label_box_h / 2, cx + box_w / 2, y + label_box_h / 2), text, flags))
+    return out
+
+
+def _add_line_text(slide, shape: Shape, tf: _Transform, font_name: str, base_size_pt: float) -> None:
+    """A connector/freeform shape has no text_frame in python-pptx, so a
+    line's text (e.g. an arrow's label) is rendered as small floating
+    textboxes instead, placed above/on/below the line per assign_text_slots()."""
+    for (x0, y0, x1, y1), text, flags in _line_label_rects(shape, base_size_pt):
+        left, top = tf.point((x0, y1))
+        textbox = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(x1 - x0), Inches(y1 - y0))
         text_frame = textbox.text_frame
         text_frame.word_wrap = False
         text_frame.margin_left = text_frame.margin_right = 0
@@ -287,10 +305,24 @@ def _add_line_text(slide, shape: Shape, tf: _Transform, font_name: str, base_siz
         run.font.color.rgb = _rgb(shape.color)
 
 
+def _content_bbox(result: LayoutResult, base_size_pt: float) -> tuple[float, float, float, float]:
+    """result.bbox, expanded to also cover line labels -- a line's own
+    bbox is just its path, so a label floating above/below it (see
+    _line_label_rects()) can stick out past result.bbox on its own."""
+    x0, y0, x1, y1 = result.bbox
+    for shape in result.shapes:
+        if shape.kind not in ("line", "arrow", "spline", "arc"):
+            continue
+        for (lx0, ly0, lx1, ly1), _text, _flags in _line_label_rects(shape, base_size_pt):
+            x0, y0 = min(x0, lx0), min(y0, ly0)
+            x1, y1 = max(x1, lx1), max(y1, ly1)
+    return x0, y0, x1, y1
+
+
 def write_pptx(
     result: LayoutResult,
     path: str,
-    margin: float = 0.5,
+    margin: float = 0.15,
     font_name: str = FONT_NAME,
     base_size_pt: float = _BASE_FONT_PT,
 ) -> None:
@@ -298,8 +330,12 @@ def write_pptx(
     `resolve_for_pptx`) to a single-slide PowerPoint file at `path`, sized
     to fit the diagram. `font_name`/`base_size_pt` should match whatever
     was passed to `resolve_for_pptx()` for that result, if it was used, so
-    rendering and "fit" sizing agree."""
-    tf = _Transform(result.bbox, margin)
+    rendering and "fit" sizing agree.
+
+    `margin` only needs to cover the diagram's own edge (e.g. a thick
+    stroke's outer half, or PowerPoint's arrowhead overshoot) -- line
+    labels are already accounted for by _content_bbox(), not by margin."""
+    tf = _Transform(_content_bbox(result, base_size_pt), margin)
     prs = Presentation()
     prs.slide_width = Emu(int(tf.slide_width * EMU_PER_INCH))
     prs.slide_height = Emu(int(tf.slide_height * EMU_PER_INCH))
