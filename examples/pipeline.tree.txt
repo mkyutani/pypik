@@ -1,0 +1,115 @@
+Document
+  statements:
+    ObjectStatement
+      label: None
+      base:
+        ClassBase
+          classname: 'arrow'
+      attributes:
+        GoDirection
+          direction: 'right'
+          amount:
+            RelExpr
+              abs: None
+              percent:
+                Num
+                  value: 200.0
+          even_with: None
+        TextAttribute
+          text: 'Markdown'
+          flags: []
+        TextAttribute
+          text: 'Source'
+          flags: []
+    ObjectStatement
+      label: None
+      base:
+        ClassBase
+          classname: 'box'
+      attributes:
+        NumProperty
+          name: 'radius'
+          value:
+            RelExpr
+              abs:
+                Num
+                  value: 0.10416666666666667
+              percent: None
+        TextAttribute
+          text: 'Markdown'
+          flags: []
+        TextAttribute
+          text: 'Formatter'
+          flags: []
+        TextAttribute
+          text: '(markdown.c)'
+          flags: []
+        Fit()
+    ObjectStatement
+      label: None
+      base:
+        ClassBase
+          classname: 'arrow'
+      attributes:
+        GoDirection
+          direction: 'right'
+          amount:
+            RelExpr
+              abs: None
+              percent:
+                Num
+                  value: 200.0
+          even_with: None
+        TextAttribute
+          text: 'HTML+SVG'
+          flags: []
+        TextAttribute
+          text: 'Output'
+          flags: []
+    ObjectStatement
+      label: None
+      base:
+        ClassBase
+          classname: 'arrow'
+      attributes:
+        ArrowDirection
+          kind: 'both'
+        GoDirection
+          direction: 'down'
+          amount:
+            RelExpr
+              abs: None
+              percent:
+                Num
+                  value: 70.0
+          even_with: None
+        From_
+          position:
+            PlacePosition
+              place:
+                ObjectEdge
+                  obj:
+                    NthRef
+                      ordinal: -1
+                      classname: 'box'
+                      container: None
+                  edge: 's'
+    ObjectStatement
+      label: None
+      base:
+        ClassBase
+          classname: 'box'
+      attributes:
+        Same
+          obj: None
+        TextAttribute
+          text: 'Pikchr'
+          flags: []
+        TextAttribute
+          text: 'Formatter'
+          flags: []
+        TextAttribute
+          text: '(pikchr.c)'
+          flags: []
+        Fit()
+  macros: []
