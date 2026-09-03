@@ -4,6 +4,10 @@ This is a line-by-line port of the hand-written tokenizer in pikchr's
 own ``pikchr.y`` (function ``pik_token_length``), so that pypik accepts
 exactly the same lexical grammar as upstream pikchr.
 Reference: https://pikchr.org/home/doc/tip/pikchr.y
+
+Substantially ported from pikchr, Copyright (C) 2020-09-01 by
+D. Richard Hipp <drh@sqlite.org>, released under the Zero-Clause BSD
+license. See the NOTICE file at the root of this repository.
 """
 
 from __future__ import annotations

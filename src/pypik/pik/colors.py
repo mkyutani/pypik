@@ -4,6 +4,10 @@ Transcribed from the ``aColor[]`` table in pikchr's own ``pikchr.y``
 (https://pikchr.org/home/doc/tip/pikchr.y). "none" and "off" are
 pikchr's own non-standard additions, both meaning "no color" (-1).
 Keys are lowercase; lookups should lowercase the input name first.
+
+The table below is copied verbatim from pikchr, Copyright (C) 2020-09-01
+by D. Richard Hipp <drh@sqlite.org>, released under the Zero-Clause BSD
+license. See the NOTICE file at the root of this repository.
 """
 
 from __future__ import annotations

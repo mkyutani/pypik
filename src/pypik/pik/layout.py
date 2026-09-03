@@ -21,6 +21,10 @@ ported, in line with a "good enough for common diagrams" scope:
 
 All coordinates are inches, with y pointing *up* (matching pikchr) --
 callers producing screen/slide coordinates (y-down) must flip y.
+
+Substantially ported from pikchr, Copyright (C) 2020-09-01 by
+D. Richard Hipp <drh@sqlite.org>, released under the Zero-Clause BSD
+license. See the NOTICE file at the root of this repository.
 """
 
 from __future__ import annotations

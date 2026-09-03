@@ -5,6 +5,10 @@ in pikchr's ``pikchr.y``. Upstream pikchr expands macros token-by-token while
 feeding an LALR parser; here expansion runs as a separate pass that consumes
 the flat token list from :class:`pypik.pik.tokens.Lexer` and produces a new,
 fully-expanded flat token list for :mod:`pypik.pik.parser` to consume.
+
+Substantially ported from pikchr, Copyright (C) 2020-09-01 by
+D. Richard Hipp <drh@sqlite.org>, released under the Zero-Clause BSD
+license. See the NOTICE file at the root of this repository.
 """
 
 from __future__ import annotations
