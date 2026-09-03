@@ -1,0 +1,197 @@
+"""Tests for pypik.pik.layout: resolving a parsed AST into concrete geometry.
+
+This engine is a deliberately pragmatic subset of pikchr's own layout
+engine -- see the module docstring in layout.py for what is and isn't
+faithfully reproduced. These tests check the mechanics that *are* ported
+(default sizes, sequential chaining, at/with/from/to/same/chop, direction
+changes, nested blocks, nth/last including the by-text-content fallback)
+rather than pixel-perfect agreement with upstream pikchr's own renderer.
+"""
+
+from __future__ import annotations
+
+import math
+import pathlib
+
+import pytest
+
+from pypik.pik import parse
+from pypik.pik.layout import LayoutError, resolve_layout
+
+FIXTURES_DIR = pathlib.Path(__file__).parent / "fixtures" / "examples"
+EXAMPLE_FILES = sorted(FIXTURES_DIR.glob("*.pik"))
+
+
+def layout(text: str):
+    return resolve_layout(parse(text))
+
+
+# ---------------------------------------------------------------------------
+# Official examples: layout must not raise
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", EXAMPLE_FILES, ids=lambda p: p.name)
+def test_official_example_lays_out_without_error(path: pathlib.Path):
+    result = layout(path.read_text(encoding="utf-8"))
+    assert len(result.shapes) > 0
+    x0, y0, x1, y1 = result.bbox
+    assert x1 >= x0 and y1 >= y0
+
+
+# ---------------------------------------------------------------------------
+# Default sizes and sequential chaining
+# ---------------------------------------------------------------------------
+
+
+def test_default_box_size_and_first_object_at_origin():
+    result = layout("box\n")
+    box = result.shapes[0]
+    assert box.kind == "box"
+    assert (box.w, box.h) == (0.75, 0.5)
+    assert (box.cx, box.cy) == (0.0, 0.0)
+
+
+def test_boxes_chain_edge_to_edge_when_flowing_right():
+    result = layout("box; box\n")
+    b1, b2 = result.shapes
+    # b2's west edge should land exactly on b1's east edge (touching, no gap/overlap)
+    assert b2.cx - b2.w / 2 == pytest.approx(b1.cx + b1.w / 2)
+    assert b2.cy == pytest.approx(b1.cy)
+
+
+def test_direction_statement_changes_chaining_axis():
+    result = layout("box; down; box\n")
+    b1, b2 = result.shapes
+    assert b2.cy + b2.h / 2 == pytest.approx(b1.cy - b1.h / 2)
+    assert b2.cx == pytest.approx(b1.cx)
+
+
+def test_circle_and_ellipse_defaults():
+    result = layout("circle; ellipse; oval\n")
+    circle, ellipse, oval = result.shapes
+    assert (circle.w, circle.h) == (0.5, 0.5)
+    assert (ellipse.w, ellipse.h) == (0.75, 0.5)
+    assert (oval.w, oval.h) == (1.0, 0.5)
+
+
+# ---------------------------------------------------------------------------
+# at / with / from / to / same / chop
+# ---------------------------------------------------------------------------
+
+
+def test_at_pins_absolute_center():
+    result = layout("box at (2,3)\n")
+    box = result.shapes[0]
+    assert (box.cx, box.cy) == (2.0, 3.0)
+
+
+def test_named_object_edge_reference():
+    result = layout("A: box at (0,0)\nB: box at (5,0)\narrow from A.e to B.w\n")
+    arrow = result.shapes[2]
+    assert arrow.path[0] == pytest.approx((0.375, 0.0))
+    assert arrow.path[-1] == pytest.approx((4.625, 0.0))
+
+
+def test_same_copies_dimensions():
+    result = layout("A: box width 2 height 1\nB: box same\n")
+    a, b = result.shapes
+    assert (b.w, b.h) == (a.w, a.h) == (2.0, 1.0)
+
+
+def test_chop_trims_line_to_box_boundary():
+    result = layout("A: box at (0,0) width 2 height 2\nB: box at (5,0) width 2 height 2\narrow from A to B chop\n")
+    arrow = result.shapes[2]
+    # A chopped endpoint must land exactly on A's east edge (x=1), not at its center.
+    assert arrow.path[0] == pytest.approx((1.0, 0.0))
+    assert arrow.path[-1] == pytest.approx((4.0, 0.0))
+
+
+def test_name_resolves_by_text_content_when_unlabeled():
+    # Ported straight from pikchr's own pik_find_byname() fallback: an
+    # object with no explicit "NAME: " label can still be referenced by
+    # the exact text it contains (two of pikchr's own official examples
+    # rely on exactly this).
+    result = layout('box "Foo"\narrow from Foo.e to Foo.e+(1,0)\n')
+    box, arrow = result.shapes
+    assert arrow.path[0] == pytest.approx(box.edge_point("e"))
+
+
+# ---------------------------------------------------------------------------
+# Line paths: then / go / heading / even-with
+# ---------------------------------------------------------------------------
+
+
+def test_then_forces_separate_path_points():
+    result = layout("line right 1 then up 1\n")
+    line = result.shapes[0]
+    assert line.path == [pytest.approx((0, 0)), pytest.approx((1, 0)), pytest.approx((1, 1))]
+
+
+def test_consecutive_perpendicular_moves_merge_into_one_diagonal_point():
+    # No "then" between them: matches pik_add_direction()'s point-merging.
+    result = layout("line right 1 up 1\n")
+    line = result.shapes[0]
+    assert line.path == [pytest.approx((0, 0)), pytest.approx((1, 1))]
+
+
+def test_heading_move_uses_compass_angle():
+    result = layout("line go 1 heading 90\n")
+    line = result.shapes[0]
+    # heading 90 == due east
+    assert line.path[-1] == pytest.approx((1.0, 0.0), abs=1e-9)
+
+
+def test_go_until_even_with():
+    result = layout("A: box at (5,3)\nline right until even with A\n")
+    line = result.shapes[1]
+    assert line.path[-1][0] == pytest.approx(5.0)
+
+
+def test_from_after_movement_rebases_the_whole_path():
+    # Matches pik_set_from(): a "from" appearing *after* a movement
+    # attribute shifts every already-recorded point, it doesn't discard them.
+    result = layout("line right 1 from (10,10)\n")
+    line = result.shapes[0]
+    assert line.path == [pytest.approx((10, 10)), pytest.approx((11, 10))]
+
+
+# ---------------------------------------------------------------------------
+# Nested [...] blocks
+# ---------------------------------------------------------------------------
+
+
+def test_nested_block_children_are_translated_to_global_coordinates():
+    result = layout("Outer: [ A: box; B: box ] at (10, 10)\n")
+    a = next(s for s in result.shapes if s.name == "A")
+    b = next(s for s in result.shapes if s.name == "B")
+    # children keep their relative layout (edge-to-edge, flowing right)...
+    assert b.cx - b.w / 2 == pytest.approx(a.cx + a.w / 2)
+    # ...translated so the block's own bbox center sits at (10, 10).
+    assert (a.cx + b.cx) / 2 == pytest.approx(10.0)
+
+
+def test_nth_and_last_within_current_scope():
+    # "LABEL: last box" names a *point* at the last box's center (per the
+    # PLACENAME COLON position grammar rule) rather than aliasing the box
+    # itself, so it isn't drawn -- check it indirectly via a position use.
+    result = layout("box; box; box\nP: last box\narrow from P to P+(1,0)\n")
+    boxes = [s for s in result.shapes if s.kind == "box"]
+    arrow = next(s for s in result.shapes if s.kind == "arrow")
+    assert arrow.path[0] == pytest.approx((boxes[-1].cx, boxes[-1].cy))
+
+
+# ---------------------------------------------------------------------------
+# Errors
+# ---------------------------------------------------------------------------
+
+
+def test_undefined_name_raises_layout_error():
+    with pytest.raises(LayoutError):
+        layout("arrow from Nope.e to Nope.w\n")
+
+
+def test_expr_evaluates_functions_and_variables():
+    result = layout("scale = 2\nbox width sqrt(4)*scale\n")
+    box = result.shapes[0]
+    assert box.w == pytest.approx(4.0)
