@@ -49,6 +49,12 @@ uv run pypik doc.md doc.pptx
 
 With no arguments, `pypik` just prints a hello-world message.
 
+On Windows (or WSL with a Windows PowerPoint install), render a `.pptx`
+to a PNG via `scripts/pptx_to_png.ps1` (PowerPoint COM automation; see
+that script's header for usage from WSL vs. Windows PowerShell directly).
+Since pypik sizes its slide exactly to the diagram, this gives an image
+of just the diagram, no separate cropping needed.
+
 ### Example
 
 `examples/pipeline.pik`:
