@@ -38,8 +38,20 @@ _SLOT_STEP = {"above2": 2, "above": 1, "center": 0, "below": -1, "below2": -2}
 # width for "fit" sizing, since that requires an actual font file on this
 # machine and Arial itself may not be installed here. PilFontMetrics tries
 # a few widely-available metrically-similar substitutes, in order.
+#
+# A Latin-only substitute (Liberation/DejaVu/Arial) silently *undersizes*
+# any CJK text: missing-glyph fallback advances are far narrower than a
+# real ideograph, so "fit" shapes come out too small and the text overflows
+# them once PowerPoint actually renders it with a CJK-capable font. A Noto
+# Sans CJK file, where present, covers Latin *and* CJK correctly, so it's
+# tried first; the Latin-only substitutes remain as a fallback chain for
+# machines without it (where only non-CJK text will still measure well).
 FONT_NAME = "Arial"
 _MEASURE_FONT_CANDIDATES = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/System/Library/Fonts/Supplemental/NotoSansCJKjp-Regular.otf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/Library/Fonts/Arial.ttf",

@@ -534,6 +534,15 @@ def _resolve_rel_current(rel: ast.RelExpr, current: float, ctx: _Ctx) -> float:
 def eval_rvalue(value: ast.Expr, ctx: _Ctx) -> float:
     if isinstance(value, ast.ColorName):
         return float(COLOR_NAMES.get(value.name.lower(), 0))
+    if isinstance(value, ast.Var):
+        # A lowercase-starting color name (e.g. "fill white") parses as a
+        # plain Var, not ast.ColorName, since only capitalized PLACENAMEs
+        # take that path (see Parser.parse_rvalue). Real pikchr scripts
+        # overwhelmingly use lowercase color names, so check the color
+        # table before falling back to a variable lookup.
+        color = COLOR_NAMES.get(value.name.lower())
+        if color is not None:
+            return float(color)
     return eval_expr(value, ctx)
 
 
